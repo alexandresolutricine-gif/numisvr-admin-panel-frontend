@@ -75,7 +75,7 @@ function detectWallets() {
 }
 
 // status: 'idle' | 'connecting' | 'authorized' | 'mismatch' | 'no_wallet_set'
-function useAdminWallet(token) {
+function useAdminWallet(token, authorityKey) {
   const [status, setStatus] = useState('idle');
   const [connectedKey, setConnectedKey] = useState(null);
   const [connectedName, setConnectedName] = useState('');
@@ -91,6 +91,16 @@ function useAdminWallet(token) {
       .then((p) => setStoredKey(p.wallet_address || null))
       .catch(() => { });
   }, [token]);
+
+  // On-chain authority overrides the DB-stored wallet address as the
+  // authoritative key. Re-evaluate authorization if wallet already connected.
+  useEffect(() => {
+    if (!authorityKey) return;
+    setStoredKey(authorityKey);
+    if (connectedKey) {
+      setStatus(connectedKey === authorityKey ? 'authorized' : 'mismatch');
+    }
+  }, [authorityKey, connectedKey]);
 
   const openPicker = useCallback(() => {
     setError('');
@@ -865,21 +875,23 @@ SaveButton.propTypes = {
 
 export default function Settings() {
   const token = useAuthStore((s) => s.token);
+
+  // On-chain state — declared first so icoState.authority can be passed to
+  // useAdminWallet as the authoritative wallet key.
+  const [icoState, setIcoState] = useState(null);
+  const [icoStateError, setIcoStateError] = useState('');
+  const [stateKey, setStateKey] = useState(0);
+  const refreshIcoState = () => setStateKey((k) => k + 1);
+
   const {
     status, connectedKey, connectedName, connectedProvider, storedKey,
     error: walletError,
     showPicker, setShowPicker, availableWallets,
     openPicker, connectTo, disconnect,
     isAuthorized,
-  } = useAdminWallet(token);
+  } = useAdminWallet(token, icoState?.authority);
 
   const [loading, setLoading] = useState(true);
-
-  // On-chain state
-  const [icoState, setIcoState] = useState(null);
-  const [icoStateError, setIcoStateError] = useState('');
-  const [stateKey, setStateKey] = useState(0);
-  const refreshIcoState = () => setStateKey((k) => k + 1);
 
   // ── TGE section ──────────────────────────────────────────────────
   const [tgeForm, setTgeForm] = useState({ tge_datetime: '', tge_unlock_percent: '' });
