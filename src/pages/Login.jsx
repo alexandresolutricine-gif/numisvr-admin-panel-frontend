@@ -12,6 +12,7 @@ export default function Login() {
   const setSession            = useAuthStore((s) => s.setSession);
   const navigate              = useNavigate();
   const hankoRef              = useRef(null);
+  const handledRef            = useRef(false);
 
   // Register the <hanko-auth> custom element and attach session listener.
   // In hanko-elements v2, register() returns { hanko } and the correct hook
@@ -23,6 +24,8 @@ export default function Login() {
     register(HANKO_API_URL)
       .then(({ hanko }) => {
         hanko.onSessionCreated(async () => {
+          if (handledRef.current) return;
+          handledRef.current = true;
           setLoading(true);
           setError('');
           try {
@@ -35,6 +38,7 @@ export default function Login() {
           } catch (err) {
             console.error('[Hanko] session created handler failed:', err);
             setError(err.message || 'Login failed. Ensure your account is registered as an admin.');
+            handledRef.current = false;
           } finally {
             setLoading(false);
           }
