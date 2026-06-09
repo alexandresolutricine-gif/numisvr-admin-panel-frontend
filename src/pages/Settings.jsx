@@ -1,6 +1,8 @@
 import { useEffect, useState, useCallback } from 'react';
 import PropTypes from 'prop-types';
 import { Connection, Transaction } from '@solana/web3.js';
+import { WalletConnectWalletAdapter } from '@solana/wallet-adapter-walletconnect';
+import { WalletAdapterNetwork } from '@solana/wallet-adapter-base';
 import useAuthStore from '../store/authStore';
 import {
   getSettings, updateSettings, getProfile, updateProfile,
@@ -9,7 +11,43 @@ import {
   buildSetAuthorityTx, createLog,
 } from '../services/api';
 
-const SOLANA_RPC = import.meta.env.VITE_SOLANA_RPC_URL || 'https://api.devnet.solana.com';
+const SOLANA_RPC = import.meta.env.VITE_SOLANA_RPC_URL || 'https://api.mainnet.solana.com';
+
+// WalletConnect (Reown) configuration. The project ID is required and must be
+// supplied via env — get one at https://cloud.reown.com. Without it, the
+// WalletConnect option surfaces a clear "not configured" error on use.
+const WALLETCONNECT_PROJECT_ID = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID || '';
+const WALLETCONNECT_NETWORK = /main/i.test(import.meta.env.VITE_SOLANA_NETWORK || 'mainnet')
+  ? WalletAdapterNetwork.Mainnet
+  : WalletAdapterNetwork.Devnet;
+
+// Lazily-created singleton. Instantiating the adapter spins up the WalletConnect
+// relay client, so we defer it until the user actually picks WalletConnect.
+let _wcAdapter = null;
+function getWalletConnectAdapter() {
+  if (!WALLETCONNECT_PROJECT_ID) {
+    throw new Error('WalletConnect is not configured. Set VITE_WALLETCONNECT_PROJECT_ID in the admin environment.');
+  }
+  if (!_wcAdapter) {
+    _wcAdapter = new WalletConnectWalletAdapter({
+      network: WALLETCONNECT_NETWORK,
+      options: {
+        projectId: WALLETCONNECT_PROJECT_ID,
+        metadata: {
+          name: 'NUVR ICO Admin',
+          description: 'NUVR ICO admin panel',
+          url: window.location.origin,
+          icons: [`${window.location.origin}/favicon.ico`],
+        },
+      },
+    });
+  }
+  return _wcAdapter;
+}
+
+// WalletConnect is a relay-based protocol, not an injected extension, so it is
+// always offered in the picker rather than detected on `window`.
+const WALLET_CONNECT_OPTION = { name: 'WalletConnect', isWalletConnect: true };
 
 const ANCHOR_ERROR_CODES = {
   6000: 'Purchases are paused', 6001: 'Amount must be greater than zero',
@@ -104,28 +142,28 @@ function useAdminWallet(token, authorityKey) {
 
   const openPicker = useCallback(() => {
     setError('');
-    const wallets = detectWallets();
-    if (wallets.length === 0) {
-      setError('No Solana wallet found. Install Phantom, Solflare, Backpack, or another Solana wallet.');
-      return;
-    }
-    if (wallets.length === 1) { connectTo(wallets[0]); return; }
+    // WalletConnect is always available (no extension required), so it is
+    // appended to whatever injected wallets are detected.
+    const wallets = [...detectWallets(), WALLET_CONNECT_OPTION];
     setAvailableWallets(wallets);
     setShowPicker(true);
   }, [storedKey]);
 
-  const connectTo = useCallback(async ({ name, provider }) => {
+  const connectTo = useCallback(async ({ name, provider, isWalletConnect }) => {
     setShowPicker(false);
     setStatus('connecting');
     setError('');
     try {
-      const resp = await provider.connect({ onlyIfTrusted: false });
-      const rawKey = resp?.publicKey ?? provider.publicKey;
+      // For WalletConnect, resolve the adapter lazily; it opens its own QR /
+      // deep-link modal on connect(). Injected wallets pass their provider directly.
+      const activeProvider = isWalletConnect ? getWalletConnectAdapter() : provider;
+      const resp = await activeProvider.connect({ onlyIfTrusted: false });
+      const rawKey = resp?.publicKey ?? activeProvider.publicKey;
       if (!rawKey) throw new Error('Wallet connected but no public key returned.');
       const pk = typeof rawKey.toString === 'function' ? rawKey.toString() : String(rawKey);
       setConnectedKey(pk);
       setConnectedName(name);
-      setConnectedProvider(provider);
+      setConnectedProvider(activeProvider);
 
       if (!storedKey) {
         setStatus('no_wallet_set');
@@ -142,6 +180,7 @@ function useAdminWallet(token, authorityKey) {
 
   const disconnect = useCallback(() => {
     detectWallets().forEach(({ provider }) => provider.disconnect?.());
+    _wcAdapter?.disconnect?.();
     setConnectedKey(null);
     setConnectedName('');
     setConnectedProvider(null);

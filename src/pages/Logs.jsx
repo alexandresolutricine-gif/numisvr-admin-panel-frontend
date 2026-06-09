@@ -54,7 +54,7 @@ function Badge({ action_type }) {
 
 function TxLink({ sig }) {
   if (!sig) return null;
-  const url = `https://explorer.solana.com/tx/${sig}?cluster=devnet`;
+  const url = `https://explorer.solana.com/tx/${sig}?cluster=mainnet`;
   return (
     <a
       href={url}
