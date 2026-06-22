@@ -6,7 +6,7 @@ import { WalletAdapterNetwork } from '@solana/wallet-adapter-base';
 import useAuthStore from '../store/authStore';
 import {
   getSettings, updateSettings, getProfile, updateProfile,
-  getIcoState, buildSetTgeTx, buildSetPausedTx, buildSetTreasuryTx, buildSetVestingScheduleTx,
+  getIcoState, buildSetTgeTx, buildSetPausedTx, buildSetVestingScheduleTx,
   buildFundVaultTx, buildTransferFromVaultTx, getVaultBalances,
   buildSetAuthorityTx, createLog,
 } from '../services/api';
@@ -310,11 +310,6 @@ function IcoStateCard({ icoState, icoStateError, isAuthorized, connectedKey, con
   const [txError, setTxError] = useState('');
   const [txId, setTxId] = useState('');
 
-  const [newTreasury, setNewTreasury] = useState('');
-  const [treasuryPhase, setTreasuryPhase] = useState('idle');
-  const [treasuryError, setTreasuryError] = useState('');
-  const [treasuryTxId, setTreasuryTxId] = useState('');
-
   const [newAuthority, setNewAuthority] = useState('');
   const [authorityPhase, setAuthorityPhase] = useState('idle');
   const [authorityError, setAuthorityError] = useState('');
@@ -337,26 +332,6 @@ function IcoStateCard({ icoState, icoStateError, isAuthorized, connectedKey, con
     } catch (e) {
       setTxPhase('error');
       setTxError(e.message || 'Transaction failed');
-    }
-  }
-
-  async function handleSetTreasury() {
-    if (!isAuthorized || !connectedProvider || !newTreasury.trim()) return;
-    setTreasuryPhase('building');
-    setTreasuryError('');
-    setTreasuryTxId('');
-    try {
-      const txData = await buildSetTreasuryTx(token, { wallet: connectedKey, treasury: newTreasury.trim() });
-      setTreasuryPhase('signing');
-      const txid = await submitOnChainTx(connectedProvider, txData.unsigned_transaction, txData.blockhash, txData.last_valid_block_height);
-      setTreasuryTxId(txid);
-      setTreasuryPhase('done');
-      setNewTreasury('');
-      createLog(token, { action_type: 'set_treasury', description: `Treasury updated to ${newTreasury.trim()}`, tx_signature: txid, metadata: { treasury: newTreasury.trim() } });
-      onStateChange();
-    } catch (e) {
-      setTreasuryPhase('error');
-      setTreasuryError(e.message || 'Transaction failed');
     }
   }
 
@@ -464,66 +439,11 @@ function IcoStateCard({ icoState, icoStateError, isAuthorized, connectedKey, con
         <p style={{ fontSize: 11, color: '#f87171', marginTop: 8 }}>{txError}</p>
       )}
 
-      {/* Treasury wallet change */}
+      {/* Treasury wallet (read-only) */}
       <div style={{ paddingTop: 12, marginTop: 12, borderTop: '1px solid var(--border)' }}>
-        <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 6 }}>
-          Current treasury: <span style={{ fontFamily: 'monospace', color: 'var(--tx)' }}>{icoState.treasury}</span>
+        <div style={{ fontSize: 11, color: 'var(--muted)' }}>
+          Current treasury: <span style={{ fontFamily: 'monospace', color: 'var(--tx)' }}>{icoState.treasury || '—'}</span>
         </div>
-        {isAuthorized ? (
-          <>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <input
-                type="text"
-                value={newTreasury}
-                onChange={(e) => { setNewTreasury(e.target.value); setTreasuryPhase('idle'); setTreasuryError(''); }}
-                placeholder="New treasury wallet address"
-                style={{
-                  flex: 1,
-                  padding: '7px 10px',
-                  borderRadius: 7,
-                  background: 'var(--item-2)',
-                  border: '1px solid var(--border-2)',
-                  color: 'var(--tx)',
-                  fontSize: 12,
-                  fontFamily: 'monospace',
-                  outline: 'none',
-                }}
-              />
-              <button
-                onClick={handleSetTreasury}
-                disabled={!newTreasury.trim() || treasuryPhase === 'building' || treasuryPhase === 'signing' || treasuryPhase === 'submitting'}
-                style={{
-                  padding: '7px 14px',
-                  borderRadius: 7,
-                  fontSize: 12,
-                  fontWeight: 600,
-                  border: '1px solid rgba(167,139,250,0.3)',
-                  background: 'rgba(167,139,250,0.08)',
-                  color: '#a78bfa',
-                  cursor: !newTreasury.trim() || ['building', 'signing', 'submitting'].includes(treasuryPhase) ? 'not-allowed' : 'pointer',
-                  opacity: !newTreasury.trim() || ['building', 'signing', 'submitting'].includes(treasuryPhase) ? 0.5 : 1,
-                  fontFamily: 'inherit',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                {treasuryPhase === 'building' ? 'Building…'
-                  : treasuryPhase === 'signing' ? 'Sign in wallet…'
-                    : treasuryPhase === 'submitting' ? 'Submitting…'
-                      : 'Set Treasury'}
-              </button>
-            </div>
-            {treasuryPhase === 'done' && treasuryTxId && (
-              <p style={{ fontSize: 11, color: '#34d399', marginTop: 6 }}>
-                Treasury updated — tx: <span style={{ fontFamily: 'monospace' }}>{treasuryTxId.slice(0, 12)}…</span>
-              </p>
-            )}
-            {treasuryPhase === 'error' && treasuryError && (
-              <p style={{ fontSize: 11, color: '#f87171', marginTop: 6 }}>{treasuryError}</p>
-            )}
-          </>
-        ) : (
-          <p style={{ fontSize: 11, color: 'var(--subtle)', margin: 0 }}>Connect authorized wallet to manage ICO state.</p>
-        )}
       </div>
 
       {/* Transfer authority */}

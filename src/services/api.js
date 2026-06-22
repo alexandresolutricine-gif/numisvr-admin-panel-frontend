@@ -105,13 +105,6 @@ export function buildSetPausedTx(token, { wallet, paused }) {
   });
 }
 
-export function buildSetTreasuryTx(token, { wallet, treasury }) {
-  return request(token, '/admin/onchain/build-set-treasury', {
-    method: 'POST',
-    body: JSON.stringify({ wallet, treasury }),
-  });
-}
-
 export function buildSetVestingScheduleTx(token, { wallet, vesting_days, cliff_days }) {
   return request(token, '/admin/onchain/build-set-vesting-schedule', {
     method: 'POST',
