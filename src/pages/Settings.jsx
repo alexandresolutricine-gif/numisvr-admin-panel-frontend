@@ -17,7 +17,7 @@ const SOLANA_RPC = import.meta.env.VITE_SOLANA_RPC_URL || 'https://api.mainnet.s
 // supplied via env — get one at https://cloud.reown.com. Without it, the
 // WalletConnect option surfaces a clear "not configured" error on use.
 const WALLETCONNECT_PROJECT_ID = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID || '';
-const WALLETCONNECT_NETWORK = /main/i.test(import.meta.env.VITE_SOLANA_NETWORK || 'mainnet')
+const WALLETCONNECT_NETWORK = /main/i.test(import.meta.env.VITE_SOLANA_NETWORK || 'mainnet-beta')
   ? WalletAdapterNetwork.Mainnet
   : WalletAdapterNetwork.Devnet;
 
